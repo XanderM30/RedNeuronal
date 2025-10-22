@@ -1,0 +1,20 @@
+{
+    "sintomas": [
+        "Náuseas",
+        "Vómito",
+        "Diarrea",
+        "Dolor abdominal",
+        "Cansancio",
+        "Fiebre",
+        "Tos",
+        "Dolor de cabeza",
+        "Congestión nasal",
+        "Estornudos",
+        "Dolor de garganta"
+    ],
+    "enfermedades": [
+        "Gastroenteritis",
+        "Gripe",
+        "Resfriado común"
+    ]
+}
