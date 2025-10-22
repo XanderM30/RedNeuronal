@@ -1,7 +1,7 @@
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
 import numpy as np
-from tensorflow.keras.models import Sequential, load_model
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import Dense
 import tensorflow as tf
 import os
@@ -20,7 +20,7 @@ db = firestore.client()
 bucket = storage.bucket()
 
 # -----------------------------
-# 2️⃣ Extraer enfermedades y síntomas
+# 2️⃣ Extraer enfermedades y síntomas desde Firestore
 # -----------------------------
 enfermedades_docs = db.collection("enfermedades").stream()
 datos = {"enfermedades": []}
@@ -47,14 +47,24 @@ for e in datos["enfermedades"]:
 # 3.1️⃣ Comprobar cambios con red anterior
 # -----------------------------
 control_file = "control_red.json"
-cambio_detectado = True  # Asumimos que hay cambios por defecto
+cambio_detectado = True  # asumimos cambios por defecto
 
 if os.path.exists(control_file):
     with open(control_file, "r", encoding="utf-8") as f:
         control_data = json.load(f)
+
+    # Manejar estructura antigua y nueva
     prev_sintomas = control_data.get("sintomas", [])
-    prev_enfermedades = control_data.get("enfermedades", [])
-    # Comparamos
+    
+    prev_enfermedades_raw = control_data.get("enfermedades", [])
+    prev_enfermedades = []
+    for e in prev_enfermedades_raw:
+        if isinstance(e, dict):
+            prev_enfermedades.append(e.get("nombre", ""))
+        elif isinstance(e, str):
+            prev_enfermedades.append(e)
+
+    # Comparar
     if sorted(prev_sintomas) == sorted(sintomas) and sorted(prev_enfermedades) == sorted(enfermedades_nombres):
         cambio_detectado = False
 
@@ -64,11 +74,21 @@ else:
     print("✅ No hay cambios en síntomas o enfermedades. Puedes omitir reentrenar si quieres.")
 
 # Guardamos la nueva lista para la próxima comparación
+# Guardamos la nueva lista para la próxima comparación
 with open(control_file, "w", encoding="utf-8") as f:
-    json.dump({"sintomas": sintomas, "enfermedades": enfermedades_nombres}, f, ensure_ascii=False, indent=4)
+    # Construir lista de enfermedades con su estructura completa
+    enfermedades_dict_list = []
+    for e in datos["enfermedades"]:
+        enfermedades_dict_list.append({
+            "nombre": e["nombre"],
+            "sintomas": e.get("sintomas", []),
+            "tips": e.get("tips", [])  # Si no hay tips, queda lista vacía
+        })
+
+    json.dump(enfermedades_dict_list, f, ensure_ascii=False, indent=4)
 
 # -----------------------------
-# 4️⃣ Entradas y salidas
+# 4️⃣ Preparar entradas y salidas para la red
 # -----------------------------
 X = []
 y = []
@@ -107,7 +127,7 @@ model.save("modelo_enfermedades.h5")
 print("✅ Modelo guardado como modelo_enfermedades.h5")
 
 # -----------------------------
-# 7️⃣ Convertir y subir a Firebase Storage
+# 7️⃣ Convertir a TensorFlow Lite y subir a Firebase Storage
 # -----------------------------
 print("🔄 Convirtiendo modelo a TensorFlow Lite...")
 converter = tf.lite.TFLiteConverter.from_keras_model(model)
@@ -117,6 +137,7 @@ with open("modelo_enfermedades.tflite", "wb") as f:
     f.write(tflite_model)
 print("✅ Modelo convertido a .tflite")
 
+# Subir a Firebase Storage
 blob = bucket.blob("modelos/modelo_enfermedades.tflite")
 blob.upload_from_filename("modelo_enfermedades.tflite")
 print("☁️ Modelo subido a Firebase Storage en: modelos/modelo_enfermedades.tflite")
