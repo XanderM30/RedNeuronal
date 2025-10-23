@@ -21,6 +21,17 @@
         "tips": []
     },
     {
+        "nombre": "Influeza",
+        "sintomas": [
+            "Fiebre",
+            "Dolor de cabeza",
+            "Cansancio",
+            "Dolor muscular",
+            "ToS seca"
+        ],
+        "tips": []
+    },
+    {
         "nombre": "Resfriado común",
         "sintomas": [
             "Congestión nasal",

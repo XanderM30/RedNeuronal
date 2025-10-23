@@ -42,7 +42,6 @@ for e in datos["enfermedades"]:
     for s in e["sintomas"]:
         if s not in sintomas:
             sintomas.append(s)
-
 # -----------------------------
 # 3.1️⃣ Comprobar cambios con red anterior
 # -----------------------------
@@ -53,18 +52,20 @@ if os.path.exists(control_file):
     with open(control_file, "r", encoding="utf-8") as f:
         control_data = json.load(f)
 
-    # Manejar estructura antigua y nueva
-    prev_sintomas = control_data.get("sintomas", [])
-    
-    prev_enfermedades_raw = control_data.get("enfermedades", [])
+    # control_data es una lista de dicts
+    prev_sintomas = []
     prev_enfermedades = []
-    for e in prev_enfermedades_raw:
-        if isinstance(e, dict):
-            prev_enfermedades.append(e.get("nombre", ""))
-        elif isinstance(e, str):
+
+    for e in control_data:
+        # Extraer síntomas
+        prev_sintomas.extend(e.get("sintomas", []))
+        # Extraer nombre de la enfermedad
+        if "nombre" in e:
+            prev_enfermedades.append(e["nombre"])
+        elif isinstance(e, str):  # compatibilidad con estructura antigua
             prev_enfermedades.append(e)
 
-    # Comparar
+    # Comparar con la lista actual
     if sorted(prev_sintomas) == sorted(sintomas) and sorted(prev_enfermedades) == sorted(enfermedades_nombres):
         cambio_detectado = False
 
@@ -73,7 +74,6 @@ if cambio_detectado:
 else:
     print("✅ No hay cambios en síntomas o enfermedades. Puedes omitir reentrenar si quieres.")
 
-# Guardamos la nueva lista para la próxima comparación
 # Guardamos la nueva lista para la próxima comparación
 with open(control_file, "w", encoding="utf-8") as f:
     # Construir lista de enfermedades con su estructura completa
