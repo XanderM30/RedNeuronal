@@ -1,23 +1,21 @@
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore
 import numpy as np
 from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Dense, Dropout
 import tensorflow as tf
 import os
 import json
+from itertools import combinations
+from nltk.stem.snowball import SpanishStemmer  # pip install nltk
+stemmer = SpanishStemmer()
 
 # -----------------------------
 # 1️⃣ Inicializar Firebase
 # -----------------------------
 cred = credentials.Certificate("firebase_config/serviceAccountKey.json")
-
-firebase_admin.initialize_app(cred, {
-    'storageBucket': 'neuromedx-77c11.appspot.com'
-})
-
+firebase_admin.initialize_app(cred)
 db = firestore.client()
-bucket = storage.bucket()
 
 # -----------------------------
 # 2️⃣ Extraer enfermedades y síntomas desde Firestore
@@ -33,39 +31,49 @@ for doc in enfermedades_docs:
     })
 
 # -----------------------------
-# 3️⃣ Procesar datos
+# 3️⃣ Normalización de síntomas
 # -----------------------------
+def normalize(text):
+    accents = 'áéíóúü'
+    replacements = 'aeiouu'
+    for i in range(len(accents)):
+        text = text.replace(accents[i], replacements[i])
+    return ''.join(c for c in text.lower() if c.isalnum() or c.isspace())
+
+def stem_list(lst):
+    return [stemmer.stem(normalize(s)) for s in lst]
+
 enfermedades_nombres = [e["nombre"] for e in datos["enfermedades"]]
 
 sintomas = []
+sintomas_por_enfermedad = {}
 for e in datos["enfermedades"]:
-    for s in e["sintomas"]:
+    sintomas_norm = stem_list(e["sintomas"])
+    sintomas_por_enfermedad[e["nombre"]] = sintomas_norm
+    for s in sintomas_norm:
         if s not in sintomas:
             sintomas.append(s)
+
 # -----------------------------
 # 3.1️⃣ Comprobar cambios con red anterior
 # -----------------------------
 control_file = "control_red.json"
-cambio_detectado = True  # asumimos cambios por defecto
+cambio_detectado = True
 
 if os.path.exists(control_file):
     with open(control_file, "r", encoding="utf-8") as f:
         control_data = json.load(f)
 
-    # control_data es una lista de dicts
     prev_sintomas = []
     prev_enfermedades = []
 
     for e in control_data:
-        # Extraer síntomas
-        prev_sintomas.extend(e.get("sintomas", []))
-        # Extraer nombre de la enfermedad
+        prev_sintomas.extend(stem_list(e.get("sintomas", [])))
         if "nombre" in e:
             prev_enfermedades.append(e["nombre"])
-        elif isinstance(e, str):  # compatibilidad con estructura antigua
+        elif isinstance(e, str):
             prev_enfermedades.append(e)
 
-    # Comparar con la lista actual
     if sorted(prev_sintomas) == sorted(sintomas) and sorted(prev_enfermedades) == sorted(enfermedades_nombres):
         cambio_detectado = False
 
@@ -74,40 +82,44 @@ if cambio_detectado:
 else:
     print("✅ No hay cambios en síntomas o enfermedades. Puedes omitir reentrenar si quieres.")
 
-# Guardamos la nueva lista para la próxima comparación
+# Guardar control
 with open(control_file, "w", encoding="utf-8") as f:
-    # Construir lista de enfermedades con su estructura completa
     enfermedades_dict_list = []
     for e in datos["enfermedades"]:
         enfermedades_dict_list.append({
             "nombre": e["nombre"],
             "sintomas": e.get("sintomas", []),
-            "tips": e.get("tips", [])  # Si no hay tips, queda lista vacía
+            "tips": e.get("tips", [])
         })
-
     json.dump(enfermedades_dict_list, f, ensure_ascii=False, indent=4)
 
 # -----------------------------
-# 4️⃣ Preparar entradas y salidas para la red
+# 4️⃣ Preparar datos para la red
 # -----------------------------
 X = []
 y = []
 
 for e in datos["enfermedades"]:
-    vector = [1 if s in e["sintomas"] else 0 for s in sintomas]
-    X.append(vector)
-    salida = [1 if e["nombre"] == nombre else 0 for nombre in enfermedades_nombres]
-    y.append(salida)
+    sintomas_norm = sintomas_por_enfermedad[e["nombre"]]
+    # Limitar combinaciones a máximo 3 síntomas
+    for r in range(1, min(len(sintomas_norm)+1, 4)):
+        for combo in combinations(sintomas_norm, r):
+            vector = [1 if s in combo else 0 for s in sintomas]
+            X.append(vector)
+            salida = [1 if e["nombre"] == nombre else 0 for nombre in enfermedades_nombres]
+            y.append(salida)
 
 X = np.array(X)
 y = np.array(y)
 
 # -----------------------------
-# 5️⃣ Definir y entrenar la red
+# 5️⃣ Definir y entrenar la red con Dropout
 # -----------------------------
 model = Sequential([
-    Dense(32, input_dim=len(sintomas), activation='relu'),
-    Dense(32, activation='relu'),
+    Dense(64, input_dim=len(sintomas), activation='relu'),
+    Dropout(0.2),
+    Dense(64, activation='relu'),
+    Dropout(0.2),
     Dense(len(enfermedades_nombres), activation='softmax')
 ])
 
@@ -115,29 +127,43 @@ model.compile(optimizer='adam', loss='categorical_crossentropy', metrics=['accur
 
 if cambio_detectado:
     print("⏳ Entrenando la red neuronal...")
-    model.fit(X, y, epochs=200, verbose=1)
+    model.fit(X, y, epochs=400, verbose=1)
     print("✅ Entrenamiento completado")
 else:
     print("⚠️ La red no fue entrenada porque no hubo cambios.")
 
-# -----------------------------
-# 6️⃣ Guardar modelo en local
-# -----------------------------
+# Guardar modelo
 model.save("modelo_enfermedades.h5")
 print("✅ Modelo guardado como modelo_enfermedades.h5")
 
 # -----------------------------
-# 7️⃣ Convertir a TensorFlow Lite y subir a Firebase Storage
+# 6️⃣ Función de predicción avanzada con top-3
 # -----------------------------
-print("🔄 Convirtiendo modelo a TensorFlow Lite...")
-converter = tf.lite.TFLiteConverter.from_keras_model(model)
-tflite_model = converter.convert()
+def predict_symptoms(user_input, top_n=3, threshold=5):
+    input_words = stem_list(user_input.split())
+    input_vector = [0] * len(sintomas)
+    for i, s in enumerate(sintomas):
+        for w in input_words:
+            if w in s or s in w:
+                input_vector[i] = 1
+                break
 
-with open("modelo_enfermedades.tflite", "wb") as f:
-    f.write(tflite_model)
-print("✅ Modelo convertido a .tflite")
+    input_vector = np.array([input_vector])
+    predictions = model.predict(input_vector)[0]
 
-# Subir a Firebase Storage
-blob = bucket.blob("modelos/modelo_enfermedades.tflite")
-blob.upload_from_filename("modelo_enfermedades.tflite")
-print("☁️ Modelo subido a Firebase Storage en: modelos/modelo_enfermedades.tflite")
+    results = []
+    for i, prob in enumerate(predictions):
+        if prob*100 >= threshold:
+            results.append({
+                "enfermedad": enfermedades_nombres[i],
+                "probabilidad": round(float(prob)*100, 1)
+            })
+
+    results = sorted(results, key=lambda x: x["probabilidad"], reverse=True)
+    return results[:top_n]
+
+# Ejemplo de uso
+usuario = "diarrea vomito"
+resultado = predict_symptoms(usuario)
+for r in resultado:
+    print(f"{r['enfermedad']}: {r['probabilidad']}%")
