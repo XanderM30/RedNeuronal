@@ -1,5 +1,55 @@
 [
     {
+        "nombre": "Alergia estacional",
+        "sintomas": [
+            "Estornudos",
+            "Picazón nasal",
+            "Ojos llorosos",
+            "Congestión"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Amigdalitis",
+        "sintomas": [
+            "Dolor de garganta",
+            "Fiebre",
+            "Dificultad para tragar",
+            "Ganglios inflamados"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Anemia por deficiencia de hierro",
+        "sintomas": [
+            "Cansancio",
+            "Palidez",
+            "Mareos",
+            "Uñas frágiles"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Bronquitis",
+        "sintomas": [
+            "Tos persistente",
+            "Dificultad para respirar",
+            "Fatiga",
+            "Opresión en el pecho"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Dermatitis atópica",
+        "sintomas": [
+            "Picazón intensa",
+            "Piel seca",
+            "Irritación",
+            "Enrojecimiento"
+        ],
+        "tips": []
+    },
+    {
         "nombre": "Gastroenteritis",
         "sintomas": [
             "Náuseas",
@@ -21,6 +71,26 @@
         "tips": []
     },
     {
+        "nombre": "Hipertensión arterial",
+        "sintomas": [
+            "Dolor de cabeza",
+            "Mareos",
+            "Visión borrosa",
+            "Zumbido en los oídos"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Infección urinaria",
+        "sintomas": [
+            "Ardor al orinar",
+            "Aumento de frecuencia urinaria",
+            "Dolor pélvico",
+            "Orina turbia"
+        ],
+        "tips": []
+    },
+    {
         "nombre": "Influeza",
         "sintomas": [
             "Fiebre",
@@ -32,11 +102,41 @@
         "tips": []
     },
     {
+        "nombre": "Migraña",
+        "sintomas": [
+            "Dolor de cabeza intenso",
+            "Sensibilidad a la luz",
+            "Náuseas",
+            "Mareo"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Otitis media",
+        "sintomas": [
+            "Dolor de oído",
+            "Fiebre",
+            "Pérdida temporal de audición",
+            "Secreción del oído"
+        ],
+        "tips": []
+    },
+    {
         "nombre": "Resfriado común",
         "sintomas": [
             "Congestión nasal",
             "Estornudos",
             "Dolor de garganta"
+        ],
+        "tips": []
+    },
+    {
+        "nombre": "Sinusitis",
+        "sintomas": [
+            "Dolor facial",
+            "Congestión nasal",
+            "Presión en la frente",
+            "Mucosidad espesa"
         ],
         "tips": []
     }

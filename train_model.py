@@ -101,7 +101,6 @@ y = []
 
 for e in datos["enfermedades"]:
     sintomas_norm = sintomas_por_enfermedad[e["nombre"]]
-    # Limitar combinaciones a máximo 3 síntomas
     for r in range(1, min(len(sintomas_norm)+1, 4)):
         for combo in combinations(sintomas_norm, r):
             vector = [1 if s in combo else 0 for s in sintomas]
@@ -132,12 +131,64 @@ if cambio_detectado:
 else:
     print("⚠️ La red no fue entrenada porque no hubo cambios.")
 
-# Guardar modelo
+# -----------------------------
+# 6️⃣ Guardar modelo en formatos .h5 y .tflite
+# -----------------------------
 model.save("modelo_enfermedades.h5")
 print("✅ Modelo guardado como modelo_enfermedades.h5")
 
+# Conversión a TFLite
+try:
+    print("📦 Convirtiendo a TensorFlow Lite...")
+    converter = tf.lite.TFLiteConverter.from_keras_model(model)
+    tflite_model = converter.convert()
+    tflite_path = "modelo_enfermedades.tflite"
+    with open(tflite_path, "wb") as f:
+        f.write(tflite_model)
+    print(f"✅ Modelo TFLite guardado como {tflite_path}")
+except Exception as e:
+    print(f"❌ Error al convertir a TFLite: {e}")
+
 # -----------------------------
-# 6️⃣ Función de predicción avanzada con top-3
+# 7️⃣ Verificar integridad del modelo TFLite
+# -----------------------------
+try:
+    print("🔍 Verificando modelo TFLite...")
+    interpreter = tf.lite.Interpreter(model_path=tflite_path)
+    interpreter.allocate_tensors()
+    print("✅ Verificación exitosa. El modelo TFLite está listo para usarse en Flutter.")
+except Exception as e:
+    print(f"❌ Error al verificar modelo TFLite: {e}")
+
+# -----------------------------
+# 8️⃣ Actualizar version.txt automáticamente
+# -----------------------------
+version_file = "version.txt"
+
+def read_version():
+    if not os.path.exists(version_file):
+        return 0
+    with open(version_file, "r", encoding="utf-8") as f:
+        try:
+            return int(f.read().strip())
+        except ValueError:
+            return 0
+
+def update_version():
+    current_version = read_version()
+    new_version = current_version + 1
+    with open(version_file, "w", encoding="utf-8") as f:
+        f.write(str(new_version))
+    print(f"🆙 Versión actualizada: {current_version} → {new_version}")
+    return new_version
+
+if cambio_detectado:
+    nueva_version = update_version()
+else:
+    print(f"ℹ️ No se actualizó version.txt porque no hubo cambios en el modelo.")
+
+# -----------------------------
+# 9️⃣ Función de predicción avanzada con top-3
 # -----------------------------
 def predict_symptoms(user_input, top_n=3, threshold=5):
     input_words = stem_list(user_input.split())
@@ -153,17 +204,25 @@ def predict_symptoms(user_input, top_n=3, threshold=5):
 
     results = []
     for i, prob in enumerate(predictions):
-        if prob*100 >= threshold:
+        if prob * 100 >= threshold:
             results.append({
                 "enfermedad": enfermedades_nombres[i],
-                "probabilidad": round(float(prob)*100, 1)
+                "probabilidad": round(float(prob) * 100, 1)
             })
 
     results = sorted(results, key=lambda x: x["probabilidad"], reverse=True)
     return results[:top_n]
 
-# Ejemplo de uso
+
+# -----------------------------
+# 🔟 Ejemplo de uso
+# -----------------------------
 usuario = "diarrea vomito"
 resultado = predict_symptoms(usuario)
 for r in resultado:
     print(f"{r['enfermedad']}: {r['probabilidad']}%")
+
+print("\n🎯 Proceso finalizado.")
+print("📤 Ahora sube manualmente a GitHub los archivos:")
+print("   - modelo_enfermedades.tflite")
+print("   - version.txt")
